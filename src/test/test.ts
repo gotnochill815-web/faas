@@ -1,35 +1,32 @@
-/* eslint-disable @typescript-eslint/unbound-method */
-
 import { strict as assert } from 'assert';
-import { printVersionAndExit } from '../utils/version';
+import { join } from 'path';
+import { spawnSync } from 'child_process';
+import { readFileSync } from 'fs';
 
 describe('utils/version', () => {
 	it('prints the package version and exits with code 0', () => {
-		let logged = '';
-		let exitCode: number | undefined;
+		const scriptPath = join(__dirname, '../utils/version.js');
 
-		const originalLog = console.log;
-		const originalExit = process.exit;
+		const result = spawnSync(
+			process.execPath,
+			[
+				'-e',
+				`
+				const mod = require(process.argv[1]);
+				mod.printVersionAndExit();
+				`,
+				scriptPath
+			],
+			{ encoding: 'utf8' }
+		);
 
-		console.log = (msg?: unknown) => {
-			logged = String(msg);
-		};
+		assert.equal(result.status, 0);
 
-		process.exit = ((code?: number) => {
-			exitCode = code;
-			throw new Error('process.exit');
-		}) as never;
+		const packageJsonPath = join(__dirname, '../../package.json');
+		const packageJson = JSON.parse(
+			readFileSync(packageJsonPath, 'utf8')
+		) as { version: string };
 
-		try {
-			printVersionAndExit();
-		} catch {
-			/* expected */
-		} finally {
-			console.log = originalLog;
-			process.exit = originalExit;
-		}
-
-		assert.match(logged, /^v\d+\.\d+\.\d+/);
-		assert.equal(exitCode, 0);
+		assert.ok(result.stdout.includes(`v${packageJson.version}`));
 	});
 });
